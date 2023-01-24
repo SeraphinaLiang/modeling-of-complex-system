@@ -1,0 +1,142 @@
+/* A monkey is at location A in a lab. There is a box in location C. The monkey wants the bananas that are hanging from the ceiling in location B, but it needs to move the box and climb onto it in order to reach them.
+
+Initial state: At(A), Level(low), BoxAt(C), BananasAt(B)
+Goal state:    Have(Bananas)
+
+Actions:
+// move from X to Y
+_Move(X, Y)_
+Preconditions:  At(X), Level(low)
+Postconditions: not At(X), At(Y)
+
+// climb up on the box
+_ClimbUp(Location)_
+Preconditions:  At(Location), BoxAt(Location), Level(low)
+Postconditions: Level(high), not Level(low)
+
+// climb down from the box
+_ClimbDown(Location)_
+Preconditions:  At(Location), BoxAt(Location), Level(high)
+Postconditions: Level(low), not Level(high)
+
+// move monkey and box from X to Y
+_MoveBox(X, Y)_
+Preconditions:  At(X), BoxAt(X), Level(low)
+Postconditions: BoxAt(Y), not BoxAt(X), At(Y), not At(X)
+
+// take the bananas
+_TakeBananas(Location)_
+Preconditions:  At(Location), BananasAt(Location), Level(high)
+Postconditions: Have(bananas)
+*/
+vocabulary V_Monkey{
+    type Time isa int
+    type Loc constructed from {A, B, C}
+    type Lev constructed from {low, high}
+
+    BananasAt(Loc,Time)
+    I_BananasAt(Loc)
+    CT_BananasAt(Loc,Time)
+    CF_BananasAt(Loc,Time)
+
+    HaveBananas(Time)
+    I_HaveBananas
+    CT_HaveBananas(Time)
+    CF_HaveBananas(Time)
+    Level(Lev,Time)
+    I_Level(Lev)
+    CT_Level(Lev,Time)
+    CF_Level(Lev,Time)
+    At(Loc,Time)
+    I_At(Loc)
+    CT_At(Loc,Time)
+    CF_At(Loc,Time)
+    BoxAt(Loc,Time)
+    I_BoxAt(Loc)
+    CT_BoxAt(Loc,Time)
+    CF_BoxAt(Loc,Time)
+
+    Move(Loc,Loc,Time)
+    ClimbUp(Loc,Time)
+    ClimbDown(Loc,Time)
+    MoveBox(Loc,Loc,Time)
+    TakeBananas(Loc,Time)
+}
+theory T_Monkey:V_Monkey{
+    
+    {	  I_HaveBananas<- false.
+        I_BananasAt(B)<-.
+        I_Level(low)<- .
+        I_At(A)<- .
+        I_BoxAt(C)<- .
+    } 
+    
+    ?n:HaveBananas(n).
+    
+    {  
+        ! l: At(l,0) <- I_At(l).
+        ! l: BananasAt(l,0) <- I_BananasAt(l).
+        ! l: Level(l,0) <- I_Level(l).
+        HaveBananas(0) <- I_HaveBananas.
+        ! l: BoxAt(l,0) <- I_BoxAt(l).
+
+        ! l t:  At(l,t+1) <-  CT_At(l,t).
+        ! l t:  BananasAt(l,t+1) <-  CT_BananasAt(l,t).
+        ! l t:  BoxAt(l,t+1) <-  CT_BoxAt(l,t).
+        ! l t:  Level(l,t+1) <-  CT_Level(l,t).
+        ! t:  HaveBananas(t+1) <-  CT_HaveBananas(t).
+
+        ! l t:  At(l,t+1) <- At(l,t) & ~CF_At(l,t).
+        ! l t:  BananasAt(l,t+1) <- BananasAt(l,t)& ~CF_BananasAt(l,t).
+        ! l t:  BoxAt(l,t+1) <- BoxAt(l,t)& ~CF_BoxAt(l,t).
+        ! l t:  Level(l,t+1) <-  Level(l,t)&~CF_Level(l,t).
+        ! t:  HaveBananas(t+1) <- HaveBananas(t)& ~CF_HaveBananas(t).
+
+        ! l t: CT_BananasAt(l,t)<-false.
+        ! l t: CF_BananasAt(l,t)<-false.
+
+        ! X Y t: CF_At(X,t) <- Move(X,Y,t).
+        ! X Y t: CT_At(Y,t) <- Move(X,Y,t).
+
+        ! l t: CT_Level(high,t)<- ClimbUp(l,t).
+        ! l t: CF_Level(low,t)<- ClimbUp(l,t).
+
+        ! l t: CT_Level(low,t)<-ClimbDown(l,t). 
+        ! l t: CF_Level(high,t)<-ClimbDown(l,t).
+
+        ! X Y t: CT_BoxAt(Y,t)<-MoveBox(X, Y,t). 
+        ! X Y t: CF_BoxAt(X,t)<-MoveBox(X, Y,t). 
+
+        ! X Y t: CT_At(Y,t)<-MoveBox(X, Y,t). 
+        ! X Y t: CF_At(X,t)<-MoveBox(X, Y,t).
+
+        ! l t: CT_HaveBananas(t)<-TakeBananas(l,t).
+
+    }
+
+ //-----formula-----------
+    
+    ! X Y t: Move(X,Y,t) =>  At(X,t)& Level(low,t).
+
+    // climb up on the box
+    ! l t: ClimbUp(l,t) =>  At(l,t)& BoxAt(l,t)& Level(low,t).
+
+    // climb down from the box
+    ! l t: ClimbDown(l,t) => At(l,t)& BoxAt(l,t)& Level(high,t).
+
+    // move monkey and box from X to Y
+    ! X Y t: MoveBox(X, Y,t) => At(X,t)& BoxAt(X,t) &Level(low,t).
+
+    // take the bananas
+    ! l t: TakeBananas(l,t)=>  At(l,t)& BananasAt(l,t)& Level(high,t).
+
+    ! t: #{x y:Move(x,y,t)}+#{l:ClimbUp(l,t)}+#{l:ClimbDown(l,t)} + #{x y:MoveBox(x,y,t)}+#{l:TakeBananas(l,t)}=<1.
+
+}
+structure S_Monkey:V_Monkey{
+    Time={0..4}
+}
+
+procedure main(){
+    printmodels(modelexpand(T_Monkey,S_Monkey))
+}

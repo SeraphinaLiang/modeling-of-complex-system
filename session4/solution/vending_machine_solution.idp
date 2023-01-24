@@ -1,0 +1,136 @@
+LTCvocabulary V {
+    type Time isa nat
+    Start : Time
+    partial Next(Time) : Time
+    
+    type Beverage constructed from { Coke, Fanta, Water, Beer }
+    type Quantity = {0..10} isa nat
+    type Coins = { 1; 2; 5; 10; } isa nat // Coins in 10 cents
+    type Amount = {0..30} isa nat // amounts up to 2 euros in steps of 10 cents
+
+    stock(Time, Beverage) : Quantity
+    I_stock(Beverage) : Quantity
+    C_stock(Time, Beverage, Quantity)
+    Cn_stock(Time, Beverage, Quantity)
+
+    price(Beverage) : Amount
+    amount(Time) : Amount // current amount paid
+    C_amount(Time, Amount)
+    Cn_amount(Time, Amount)
+    // No initial amount, because it is always zero.
+
+    type Action constructed from { Pay(Coins), PressButton(Beverage), AskRefund, Restock }
+    do(Time, Action)
+}
+
+theory timeTheo : V {
+    {
+        Start = MIN[:Time].
+        !t: Next(t) = t+1 <- Time(t+1).
+    }
+}
+theory T : V {
+    {
+        ! b[Beverage]: stock(Start, b) = I_stock(b).
+        ! t[Time] b[Beverage] q[Quantity]: stock(Next(t), b) = q <- C_stock(t, b, q).
+        ! t[Time] b[Beverage] q[Quantity]: stock(Next(t), b) = q <- stock(t, b) = q & ~Cn_stock(t, b, q).
+    }
+    {
+        ! t[Time] b[Beverage]: C_stock(t, b, stock(t, b) - 1) <- do(t, PressButton(b)) & amount(t) >= price(b).
+        ! t[Time] b[Beverage]: C_stock(t, b, I_stock(b)) <- do(t, Restock).
+        ! t[Time] b[Beverage] q[Quantity]: Cn_stock(t, b, q) <- ? p[Quantity]: C_stock(t, b, p) & q ~= p.
+    }
+    {
+        amount(Start) = 0.
+        ! t[Time] a[Amount]: amount(Next(t)) = a <- C_amount(t, a).
+        ! t[Time] a[Amount]: amount(Next(t)) = a <- amount(t) = a & ~Cn_amount(t, a).
+    }
+    {
+        ! t[Time]: C_amount(t, 0) <- do(t, AskRefund).
+        ! t[Time] c[Coins]: C_amount(t, amount(t) + c) <- do(t, Pay(c)).
+        ! t[Time] b[Beverage]: C_amount(t, amount(t) - price(b)) <- do(t, PressButton(b)).
+        ! t[Time] a[Amount]: Cn_amount(t, a) <- ? b[Amount]: C_amount(t, b) & a ~= b.
+    }
+
+    ! t[Time] c[Coins]: do(t, Pay(c)) => amount(t) < max{b[Beverage] : true : price(b)}.
+    ! t[Time]: ?=1 a[Action]: do(t, a). // one action at one time 
+    ! t[Time]: do(t, Restock) => ? b[Beverage]: stock(t, b) < I_stock(b).
+    ! t[Time]: do(t, AskRefund) => amount(t) > 0.
+}
+
+theory NoLargerAmount : V {
+    ! t[Time]: amount(t) =< 24.
+}
+
+structure S : V {
+    Time = {0..25}
+    price = { Coke(),12; Fanta(),12; Water(),10; Beer(),15; }
+    I_stock = { Coke(),5; Fanta(),5; Water(),5; Beer(),5; }
+}
+
+procedure simulate() {
+    stdoptions.nbmodels = 10
+    print("----> Starting interactive simulation")
+    local states = initialise(T,S)
+
+    // use one of those initial states to continue with (again and again and ...)
+    while true do
+        printmodels(states)
+        print("Please enter which state to use")
+        local num = tonumber(io.read("*line"))
+        if num == nil then
+            break
+        elseif num < 1 or num > 10 then
+            break
+        end
+        local chosen = states[num]
+        states = progress(T,chosen)
+    end
+}
+
+theory initInvariant : V_ss {
+    amount =< 24.
+}
+
+theory bistateInvariant : V_bs {
+    amount_next =< 24.
+}
+
+procedure proveInvariant() {
+    
+    //First we need to split theory in initial and bistate parts
+    models, bsTheo, isTheo, bsVoc, ssVoc = initialise(T, S)
+    // isTheo - the theory generated from the theory T that has all constraints at the initial time point
+    // bsTheo - the theory generated from the theory T that has all constraints about two consecutive time points
+
+    
+    // First we check if initial theory entails the initial invariant
+    // In other words: is amount =< 24 at the Start
+    a = entails(isTheo, initInvariant)
+    
+    // Next, we check if bistate theory together with the fact that ,the initial invariant 
+    // is holding ,entails bistate invariant invariant
+    // In other words: is the amount at the next time point =< 24 ,if it is =<24 right now
+    b = entails(merge(bsTheo, initInvariant), bistateInvariant)
+    
+    
+    if a and b then
+        //If both are true then invarinat holds
+        print("The invariant is entailed")
+    else
+        //If not print and see whic one fails
+        print("T_init entails the invariant at 0:", a)
+        print("T_bs entails the invariant at 1", b)
+    end
+}
+
+procedure main() {
+    //simulate()
+    // printmodels(modelexpand(merge(T, timeTheo), S))
+    // print("Can't have an amount larger than 24 in the machine:")
+    print(isinvariant(T, NoLargerAmount, S))
+    proveInvariant()
+    
+    //This is the builtin method equivalent to proveInvariant
+    //print(isinvariant(T, NoLargerAmount))
+}

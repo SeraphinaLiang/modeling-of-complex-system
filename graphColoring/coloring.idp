@@ -1,0 +1,16 @@
+vocabulary V{
+	type Color
+	type Area
+	Border(Area,Area)
+	Coloring(Area):Color
+}
+
+theory T : V {
+	// Two adjacent countries can not have the same color
+	! x1[Area],x2[Area]:Border(x1,x2)=>Coloring(x1)~=Coloring(x2).
+}
+
+include "coloring_draw.idp"
+include "coloring_instance_1.idp"
+include "coloring_oplossing.aidp"
+include "idpd3/run.idp"

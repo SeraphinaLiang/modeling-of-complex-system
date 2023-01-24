@@ -1,0 +1,115 @@
+LTCvocabulary V {
+    type Time isa nat
+    Start : Time
+    partial Next(Time) : Time
+
+    type Beverage constructed from { Coke, Fanta, Water, Beer }
+    type Quantity = {0..10} isa nat
+    type Coins = { 1; 2; 5; 10; } isa nat // Coins in 10 cents
+    type Amount = {0..30} isa nat // amounts up to 2 euros in steps of 10 cents
+
+    stock(Time, Beverage) : Quantity
+    I_stock(Beverage) : Quantity
+    C_stock(Time, Beverage, Quantity)
+    Cn_stock(Time, Beverage, Quantity)
+
+    price(Beverage) : Amount
+    amount(Time) : Amount // current amount paid
+    C_amount(Time, Amount)
+    Cn_amount(Time, Amount)
+    // No initial amount, because it is always zero.
+
+    type Action constructed from { Pay(Coins), PressButton(Beverage), AskRefund, Restock }
+    do(Time, Action)
+}
+
+theory timeTheo : V {
+    {
+        Start = MIN[:Time].
+        ! t[Time]: Next(t) = t + 1 <- Time(t + 1).
+    }
+}
+
+theory T : V {
+    // TO DO
+}
+
+theory NoLargerAmount : V {
+    // TO DO
+}
+
+structure S : V {
+    Time = {0..25}
+    price = { Coke(),12; Fanta(),12; Water(),10; Beer(),15; }
+    I_stock = { Coke(),5; Fanta(),5; Water(),5; Beer(),5; }
+}
+
+procedure simulate() {
+    stdoptions.nbmodels = 10
+    print("----> Starting interactive simulation")
+    local states = initialise(T,S)
+
+    // use one of those initial states to continue with (again and again and ...)
+    while true do
+        printmodels(states)
+        print("Please enter which state to use")
+        local num = tonumber(io.read("*line"))
+        if num == nil then
+            break
+        elseif num < 1 or num > 10 then
+            break
+        end
+        local chosen = states[num]
+        states = progress(T,chosen)
+    end
+}
+
+theory initInvariant : V_ss {
+    // TO DO
+    // Note that this theory uses V_ss vocabulary (single-state vocabulary) 
+    // This vocabulary is automatically available because the vocabulary V is LTCvocabulary
+    // You can print this vocabulary in the proveInvariant method 
+}
+
+theory bistateInvariant : V_bs {
+    // TO DO
+    // Note that this theory uses V_bs vocabulary (bistate vocabulary)
+    // This vocabulary is automatically available because the vocabulary V is LTCvocabulary
+    // You can print this vocabulary in the proveInvariant method 
+}
+
+procedure proveInvariant() {
+    // NOTE: This method is already implemented in IDP3, it is isinvariant(T, T') where T' is a single state formula
+    // This is just an exercise of implementing such an inference.
+    
+    
+    models, bsTheo, isTheo, bsVoc, ssVoc = initialise(T, S)
+    
+    //bsTheo - bistate theory
+    //isTheo - initial state theory
+    //bsVoc  - bistate vocabulary
+    //ssVoc  - single state vocabulary
+    // Check course notes for more details
+    
+    // Hint: You can print the vocabularies above to see what symbols are available. This would help you to specify init and bistate invariants. 
+    
+    
+    // For this part you will need only bsTheo and isTheo combined with initInvariant and bistateInvariant
+    // To do this you will have to use the procedure entails(Theory, Theory)
+    
+    
+    // Hint:
+    //	1. Prove that initial theory entails initial invariant
+    //	2. Prove that bistate theory when entails bistate invariant when initial invariant holds 
+    
+    
+    //NOTE: If entailment results with nil it means that theorem prover failed to prove entailment
+}
+
+procedure main() {
+    simulate()
+    // printmodels(modelexpand(merge(T, timeTheo), S))
+    // print("Can't have an amount larger than 24 in the machine:")
+    // print(isinvariant(T, NoLargerAmount, S))
+    // proveInvariant()
+}

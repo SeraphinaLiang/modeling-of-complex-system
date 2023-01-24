@@ -1,0 +1,67 @@
+LTCvocabulary V {
+    type Time isa int
+    Start : Time
+    partial Next(Time) : Time
+    type Package
+    
+    // depends(a,b) means that package b depends directly on package a
+    depends(Package, Package)
+    // indicates which packages are installed at certain timepoints
+    installed(Time, Package)
+    C_installed(Time, Package)
+    Cn_installed(Time, Package)
+    
+    install(Time, Package)
+    remove(Time, Package)
+    recInstall(Time, Package)
+    
+    // recDepends(a,b) means that package b depends recursively on package a
+    recDepends(Package, Package)
+}
+
+theory T : V {
+    // To install a package, every dependency must be installed and it isn't installed itself
+    ! t[Time], p[Package]: install(t,p) => ~installed(t,p) & (! q[Package]: depends(q, p) => installed(t, q)).
+    // To remove a package, it needs to be installed and no other package can depend on it
+    ! t[Time], p[Package]: remove(t,p) => installed(t,p) & ~(? q[Package]: installed(t,q) & depends(p,q)).
+    // To recursively install a package, it shouldn't be installed yet.
+    ! t[Time], p[Package]: recInstall(t,p) => ~installed(t,p).
+    
+    // no concurrent actions
+    ! t[Time]: #{p[Package] : install(t, p)} + #{p[Package] : remove(t,p)} + #{p[Package] : recInstall(t,p)} = 1.
+    
+    { // definition of recDepends
+        ! p[Package], q[Package]: recDepends(p, q) <- depends(p,q).
+        ! q[Package], p[Package]: recDepends(p, q) <- ? r[Package]: depends(p,r) & depends(r,q).
+    }
+    { // definition of when installed is caused
+        ! t[Time], p[Package]: C_installed(t, p) <- install(t, p).
+        ! t[Time], p[Package]: C_installed(t, p) <- recInstall(t, p).
+        ! t[Time], p[Package]: C_installed(t, p) <- ? q[Package]: recDepends(p,q) & recInstall(t,q).
+        ! t[Time], p[Package]: Cn_installed(t, p) <- remove(t,p).
+    }
+    { // state axioms of installed, no init_installed because everything is uninstalled at the beginning.
+        ! t[Time], p[Package]: installed(Next(t), p) <- C_installed(t, p).
+        ! t[Time], p[Package]: installed(Next(t), p) <- installed(t, p) & ~Cn_installed(t, p).
+    }
+}
+
+vocabulary V_2 {
+    extern vocabulary V
+    size(Package) : int
+    totalDiskSpace : int
+    availableSpace(Time) : int
+}
+
+theory T2 : V_2 {
+    { // frame rules for availableSpace
+        availableSpace(Start) = totalDiskSpace.
+        ! t[Time], p[Package]: availableSpace(Next(t)) = availableSpace(t) - size(p) <- install(t,p).
+        ! t[Time], p[Package]: availableSpace(Next(t)) = availableSpace(t) - sum {q[Package]: recDepends(q,p) & ~installed(t,q) : size(q)} <- recInstall(t,p).
+        ! t[Time], p[Package]: availableSpace(Next(t)) = availableSpace(t) + size(p) <- remove(t,p).
+    }
+    // Sufficient disk space to install
+    ! t[Time], p[Package]: install(t,p) => availableSpace(t) >= size(p).
+    // Sufficient disk space to recursively install
+    ! t[Time], p[Package]: recInstall(t,p) => availableSpace(t) >= sum {q[Package]: recDepends(q,p) & ~installed(t,q) : size(q)}.
+}

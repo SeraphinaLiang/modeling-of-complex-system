@@ -1,0 +1,127 @@
+vocabulary V {
+    type Time isa int
+    type Player
+    type Matches isa int
+    type Heap
+
+    I_nb(Heap, Matches)
+    C_nb(Time, Heap, Matches)
+    Cn_nb(Time, Heap, Matches)
+
+    nb(Time, Heap) : Matches
+
+    turn(Time, Player)
+    I_turn : Player
+    winner(Time, Player)
+    gameOver(Time)
+
+    // action
+    takes(Time, Player, Heap, Matches)
+}
+
+structure Big : V {
+    Time  = {0..17}
+    Player = { P1; P2; }
+    I_turn = P1
+    Matches = {0..7}
+    Heap = { H1; H2; H3; H4; }
+    I_nb = { H1,1; H2,3; H3,5; H4,7; }
+}
+
+structure P1Wins : V {
+    Time  = {0..17}
+    Player = { P1; P2; }
+    I_turn = P1
+    Matches = {0..7}
+    Heap = { H1; H2; H3; H4; }
+    I_nb = { H1,1; H2,3; H3,5; H4,7; }
+    winner<ct> = { 17,P1; }
+}
+
+structure P2Wins : V {
+    Time  = {0..17}
+    Player = { P1;P2; }
+    I_turn = P1
+    Matches = {0..7}
+    Heap = { H1; H2; H3; H4; }
+    I_nb = { H1,1; H2,3; H3,5; H4,7; }
+    winner<ct> = { 17,P2; }
+}
+
+structure Small : V {
+    Time  = {0..17}
+    Player = { P1; P2; }
+    I_turn = P1
+    Matches = {0..5}
+    Heap = { H1; H2; H3; }
+    I_nb = { H1,1; H2,3; H3,5; }
+}
+
+theory T : V {
+    {
+        ! h[Heap] m[Matches]: nb(0, h) = m <- I_nb(h, m).
+        ! t[Time] h[Heap] m[Matches]: nb(t + 1, h) = m <- C_nb(t, h, m).
+        ! t[Time] h[Heap] m[Matches]: nb(t + 1, h) = m <- nb(t, h) = m & ~Cn_nb(t, h, m).
+    }
+    {
+        ! t[Time] h[Heap] m[Matches]: C_nb(t, h, m) <- ? p[Player] n[Matches]: takes(t, p, h, n) & m = nb(t, h) - n.
+        ! t[Time] h[Heap] m[Matches]: Cn_nb(t, h, m) <- ? n[Matches]: C_nb(t, h, n) & n ~= m.
+    }
+
+    // Preconditions and axioms for takes 满足条件
+    //  动作 =》必要条件
+    ! t[Time] p[Player] h[Heap] m[Matches]: takes(t, p, h, m) => 0 < m =< nb(t, h).
+      // 一次一人只能拿一个堆的火柴
+    ! t[Time] p[Player] h1[Heap] h2[Heap] m1[Matches] m2[Matches]: takes(t, p, h1, m1) & takes(t, p, h2, m2) => h1 = h2 & m1 = m2.
+    ! t[Time] p[Player] h[Heap] m[Matches]: takes(t, p, h, m) => turn(t, p).
+    ! t[Time] p[Player]: turn(t, p) => gameOver(t) | (? h[Heap] m[Matches]: takes(t, p, h, m)).
+
+    {
+        turn(0, I_turn).
+        ! t[Time] p[Player]: turn(t + 1, p) <- ~gameOver(t) & ~turn(t, p).
+        ! t[Time] p[Player]: turn(t + 1, p) <- gameOver(t) & turn(t, p). // at game over the same player is on turn.
+        ! t[Time] p[Player]: winner(t, p) <- gameOver(t) & turn(t, p).
+    }
+     // 执行
+    {
+      ! t[Time]: gameOver(t) <- ! h[Heap]: nb(t, h) = 0.
+    }
+}
+
+theory morePlayersOnTurn : V {
+    ? t[Time]: ? p1[Player] p2[Player]: turn(t, p1) & turn(t, p2) & p1 ~= p2.
+}
+
+theory gameNotComingToAnEnd : V {
+    ! t[Time]: ~gameOver(t).
+}
+
+theory gameOverButNotEmpty : V {
+    ? t[Time] h[Heap]: gameOver(t) & nb(t, h) ~= 0.
+}
+
+procedure main() {
+    T3 = merge(T, morePlayersOnTurn)
+    T4 = merge(T, gameNotComingToAnEnd)
+    T5 = merge(T, gameOverButNotEmpty)
+    if sat(T, P1Wins) and sat(T, P2Wins) then
+        print("ok: every player can win")
+    else
+        print("not every player can win")
+    end
+    if sat(T3, Big) then
+        print("more players can be on turn")
+    else
+        print("ok: only one player can be on turn")
+    end
+    if sat(T4, Small) then
+        print("there is a game not ending")
+    else
+        print("ok: every game comes to an end")
+    end
+    if sat(T5, Small) then
+        print("it is possible that the game is over with full heaps")
+    else
+        print("ok: when gameover, heaps are empty")
+    end
+}

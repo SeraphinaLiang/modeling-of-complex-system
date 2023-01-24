@@ -1,0 +1,224 @@
+// DO NOT CHANGE THIS VOCABULARY
+LTCvocabulary V_fixed {
+    type Time isa nat
+    Start: Time
+    partial Next(Time): Time
+    
+    type Floor isa nat
+    type DoorState constructed from {Closed, Open}
+	
+    // Fluents
+    ElPosition(Time):Floor
+    ElDoorState(Time):DoorState
+	UnansweredRequest(Time, Floor)
+    
+    // Actions
+    MakeRequest(Time, Floor) 
+}
+
+
+// STUDENT VOCABULARY
+LTCvocabulary V_student {
+    extern vocabulary V_fixed
+    
+    // Direction
+    type Direction constructed from {Up, Down}
+    
+    // Elevator actions
+    Move(Time, Direction)
+    ChangeDoorState(Time, DoorState)
+    
+    // ElPosition
+    I_ElPosition: Floor
+    C_ElPosition(Time, Floor)
+    
+    // ElDoorState
+    I_ElDoorState: DoorState
+    C_ElDoorState(Time, DoorState)
+    
+    // UnansweredRequest
+    I_UnansweredRequest(Floor)
+    CT_UnansweredRequest(Time, Floor)
+    CF_UnansweredRequest(Time, Floor)
+    
+    
+    // CurrentDirection
+    CurrentDirection(Time, Direction)
+    I_CurrentDirection(Direction)
+    CT_CurrentDirection(Time, Direction)
+    CF_CurrentDirection(Time, Direction)
+    
+    // HasCurrentDirection
+    HasCurrentDirection(Time)
+    
+    // AnswerRequest
+    AnswerRequest(Time, Floor)
+    
+    // AnsweringRequest
+    AnsweringRequest(Time, Floor)
+    I_AnsweringRequest(Floor)
+    CT_AnsweringRequest(Time, Floor)
+    CF_AnsweringRequest(Time, Floor)
+}
+
+
+// DO NOT CHANGE THIS THEORY
+Theory T_fixed : V_student {
+    // Defining time
+    {
+        Start = MIN[:Time].
+        ! t: Next(t) = t+1 <- Time(t+1).
+    }
+}
+
+// STUDENT THEORY
+Theory T_student:V_student {
+	
+    // ElPosition definitions
+    {	
+        I_ElPosition = 0.
+        ElPosition(Start) = I_ElPosition.
+        !t[Time], f[Floor]: ElPosition(Next(t)) = f <- C_ElPosition(t, f).
+        !t[Time]: ElPosition(Next(t)) = ElPosition(t) <- ~?f[Floor]: C_ElPosition(t, f).
+        
+        !t[Time], f[Floor]: C_ElPosition(t, f+1) <- ElPosition(t) = f & Move(t, Up).
+        !t[Time], f[Floor]: C_ElPosition(t, f-1) <- ElPosition(t) = f & Move(t, Down).
+    }
+    
+    // ElDoorState definitions
+    {   
+        I_ElDoorState = Closed.
+        ElDoorState(Start) = I_ElDoorState.
+        !t[Time], d[DoorState]: ElDoorState(Next(t)) = d <- C_ElDoorState(t, d).
+        !t[Time]: ElDoorState(Next(t)) = ElDoorState(t) <- ~?d[DoorState]: C_ElDoorState(t, d).
+        
+        !t[Time], d[DoorState]: C_ElDoorState(t, d) <- ChangeDoorState(t, d).
+    }
+    
+    // UnansweredRequest definitions
+    {
+        !f[Floor]: I_UnansweredRequest(f) <- false.
+        !f[Floor]: UnansweredRequest(0, f) <- I_UnansweredRequest(f).
+    	!t[Time], f[Floor]: UnansweredRequest(Next(t), f) <- CT_UnansweredRequest(t, f).
+        !t[Time], f[Floor]: UnansweredRequest(Next(t), f) <- UnansweredRequest(t, f) & ~CF_UnansweredRequest(t, f).
+        
+        !t[Time], f[Floor]: CT_UnansweredRequest(t, f) <- ~UnansweredRequest(t, f) & MakeRequest(t, f).
+        !t[Time], f[Floor]: CF_UnansweredRequest(t, f) <- ElPosition(t) = f & C_ElDoorState(t, Closed).
+    }
+    
+    // AnswerRequest definitions
+    {
+        !t[Time], f[Floor]: AnswerRequest(t, f) <- UnansweredRequest(t, f) & ElPosition(t) = f & ~AnsweringRequest(t, f).
+    }
+    
+    // AnsweringRequest definitions
+    {	
+        !f[Floor]: I_AnsweringRequest(f) <- false.
+        !f[Floor]: AnsweringRequest(0, f) <- I_AnsweringRequest(f).
+        !t[Time], f[Floor]: AnsweringRequest(Next(t), f) <- CT_AnsweringRequest(t, f).
+        !t[Time], f[Floor]: AnsweringRequest(Next(t), f) <- AnsweringRequest(t, f) & ~CF_AnsweringRequest(t, f). 
+        !t[Time], f[Floor]: CT_AnsweringRequest(t, f) <- AnswerRequest(t, f).
+        !t[Time], f[Floor]: CF_AnsweringRequest(t, f) <- CF_UnansweredRequest(t, f).
+    }
+    
+    // ChangeDoorState definitions
+    {
+        !t[Time]: ChangeDoorState(t, Open) <- ?f[Floor]: AnswerRequest(t, f).
+        !t[Time]: ChangeDoorState(t, Closed) <- ?f[Floor]: AnsweringRequest(t, f) & ElDoorState(t) = Open.
+    }
+    
+    
+    // HasCurrentDirection definitions
+    
+    {
+        !t[Time]: HasCurrentDirection(t) <- ?dir[Direction]: CurrentDirection(t, dir).
+    }
+    
+    // CurrentDirection definitions
+    {
+        
+        !dir[Direction]: I_CurrentDirection(dir) <- false.
+        !dir[Direction]: CurrentDirection(0, dir) <- I_CurrentDirection(dir).
+        
+        !t[Time], dir[Direction]: CurrentDirection(Next(t), dir) <- CT_CurrentDirection(t, dir).
+        !t[Time], dir[Direction]: CurrentDirection(Next(t), dir) <- CurrentDirection(t, dir) & ~CF_CurrentDirection(t, dir).
+        
+        
+        !t[Time]: CT_CurrentDirection(t, Up) <- ~HasCurrentDirection(t) & 
+        	? f1[Floor]: UnansweredRequest(t, f1) & f1 > ElPosition(t) & 
+        	! f2[Floor]: UnansweredRequest(t, f2) & f2 < ElPosition(t) => (f1 - ElPosition(t)) =< (ElPosition(t) - f2).
+        
+        !t[Time]: CT_CurrentDirection(t, Down) <- ~HasCurrentDirection(t) & 
+        	? f1[Floor]: UnansweredRequest(t, f1) & f1 < ElPosition(t) & 
+        	! f2[Floor]: UnansweredRequest(t, f2) & f2 > ElPosition(t) => (ElPosition(t) - f1) < (f2 - ElPosition(t)).
+        
+        
+        !t[Time], dir[Direction]: CF_CurrentDirection(t, Up) <- 	// Current direction should not be UP if
+        	CurrentDirection(t, Up) & 								// Current direction is up
+        	ElDoorState(t) = Open & 								// And doors are open
+        	~(?f[Floor]: UnansweredRequest(t, f) & f > ElPosition(t)) & 	// And no requests waiting above
+        	~(?f[Floor]: CT_UnansweredRequest(t, f) & f >= ElPosition(t)).  // And no upcoming requests above
+        
+        
+        !t[Time], dir[Direction]: CF_CurrentDirection(t, Down) <- 	// Current direction should not be Down if
+        	CurrentDirection(t, Down) & 							// Current direction is down
+        	ElDoorState(t) = Open & 								// And doors are open
+        	~(?f[Floor]: UnansweredRequest(t, f) & f < ElPosition(t)) & 	// And no requests waiting below
+        	~(?f[Floor]: CT_UnansweredRequest(t, f) & f =< ElPosition(t)).  // And no upcoming requests below
+    }
+    
+    // Move definitions
+    {
+        !t[Time], dir[Direction]: Move(t, dir) <- CurrentDirection(t, dir) & ~UnansweredRequest(t, ElPosition(t)).
+        !t[Time], dir[Direction]: Move(t, dir) <- CT_CurrentDirection(t, dir) & ~UnansweredRequest(t, ElPosition(t)).
+    }
+    
+    // Move preconditions
+    !t[Time], dir[Direction]: Move(t, dir) => ElDoorState(t) = Closed.
+	
+    // ChangeDoorState preconditions
+    !t[Time]: ChangeDoorState(t, Open) => ElDoorState(t) = Closed.
+    !t[Time]: ChangeDoorState(t, Closed) => ElDoorState(t) = Open.
+}
+
+
+// If the elevator moves the doors are closed!
+theory move_inv : V_student {
+    ! t[Time] : (? dir[Direction] : Move(t, dir)) => ElDoorState(t) = Closed.
+}
+
+
+// Doors are never open if there is no call waiting on that floor!
+theory door_inv : V_student {
+    ! t[Time] : ElDoorState(t) = Open => UnansweredRequest(t, ElPosition(t)).
+}
+
+
+// Structure for checking invariants
+Structure S_Inv:V_student {
+    Time = {0..20}
+    Floor = {0..5}
+    Start = 0
+}
+
+
+procedure proveInvariants(){
+    print(isinvariant(T_student, move_inv, S_Inv))
+    print(isinvariant(T_student, door_inv, S_Inv))
+}
+
+
+procedure main() {
+    local CompleteTheory = merge(T_fixed, T_student) 
+    
+    model = onemodel(CompleteTheory, S1)
+    print(model)
+    initVisualization()
+    visualizeElevator(model)
+    
+    proveInvariants()
+}
+
+
+include "visualize_elevator.idp"
+include "structures.idp"

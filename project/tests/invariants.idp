@@ -1,0 +1,31 @@
+// Structure for testing
+Structure S_Invariant:V_student {
+    Time = {0..20}
+    Floor = {0..5}
+    Start = 0
+}
+
+// If the elevator moves the doors are closed!
+theory inv_1 : V_student {
+    ! t[Time] : (ElPosition(t) ~= ElPosition(Next(t))) => (ElDoorState(t) = Closed & ElDoorState(Next(t)) = Closed).
+}
+
+// Doors are only open when the elevator is answering a request
+theory inv_2 : V_student {
+    ! t[Time] : ElDoorState(t) = Open => UnansweredRequest(t, ElPosition(t)).
+}
+
+// Taking into account inv_2, if doors are open there is no unanswered request on that floor at the next time point.
+theory inv_3 : V_student {
+    ! t[Time] : ElDoorState(t) = Open => ~UnansweredRequest(Next(t), ElPosition(t)).
+}
+
+// Taking into account inv_2 it is entailed that doors are never open for two consecutive time points
+theory inv_4 : V_student {
+    ! t[Time] : ElDoorState(t) = Open => ElDoorState(Next(t)) = Closed.
+}
+
+// Make request results in a new UnansweredRequest (if it is not already unanswered)
+theory inv_5 : V_student {
+    ! t[Time] : ! f[Floor] : (MakeRequest(t, f) & ~UnansweredRequest(t,f)) => UnansweredRequest(Next(t),f) .
+}

@@ -1,0 +1,23 @@
+vocabulary V{
+    type Food
+    type Fruit isa Food
+    type Label
+    Labeling(Fruit,Label)
+    LabelOf(Fruit):Label
+}
+
+theory T : V{
+    ! f[Fruit]: ? n[Label] : Labeling(f,n).
+}
+
+structure S : V{
+    Fruit = {Apple;Pear}
+    Label = {1..7}
+    LabelOf = {Apple->1;Pear->5}
+}
+
+procedure main(){
+    stdoptions.nbmodels = 5
+    sols = modelexpand(T,S)
+    printmodels(sols)
+}

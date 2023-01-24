@@ -1,0 +1,83 @@
+vocabulary V {
+    type Time isa nat
+    partial Next(Time) : Time
+    Start : Time
+
+    type Jug
+    type Liters isa nat
+    maxContents(Jug) : Liters
+
+    type Action constructed from { Fill(Jug), Transfer(Jug, Jug, Liters), Empty(Jug) }
+    do(Time, Action)
+
+    contents(Time, Jug) : Liters
+    I_contents(Jug, Liters)
+    C_contents(Time, Jug, Liters)
+    Cn_contents(Time, Jug, Liters)
+
+}
+
+theory timeTheo : V {
+    {
+        Start = MIN[:Time].
+        !t: Next(t) = t + 1 <- Time(t + 1).
+    }
+}
+
+structure S : V {
+    Time = {0..6}
+    Jug = { J3;J5; }
+    Liters = {0..10}
+    maxContents = { J5->5; J3->3; }
+    I_contents = { J3,0;J5,0; }
+}
+
+theory T : V {
+    // Do not fill from empty jug (optional)
+    ! t[Time] j[Jug] k[Jug] l[Liters]: do(t, Transfer(j, k, l)) => contents(t, j) > 0.
+
+    // Do not fill self
+    ! t[Time] j[Jug] k[Jug] l[Liters]: do(t, Transfer(j, k, l)) => j ~= k.
+    // Do not fill full jug (optional)
+    ! t[Time] j[Jug]: do(t, Fill(j)) => contents(t, j) ~= maxContents(j).
+
+    // Do not empty empty jug (optional)
+    ! t[Time] j[Jug] : do(t, Empty(j)) => contents(t, j) ~= 0.
+
+    // The number of liters should match the current situation
+    // Transfer no more than what's contained in the jug.
+    !t[Time] j[Jug] k[Jug] l[Liters]: do(t, Transfer(j, k, l)) => l =< contents(t, j).
+    // Transfer no more than what can be filled in the receiving jug.
+    ! t[Time] j[Jug] k[Jug] l[Liters]: do(t, Transfer(j, k, l)) => l =< maxContents(k) - contents(t, k).
+    // Transfer either the full jug or what is maximally possible.
+    ! t[Time] j[Jug] k[Jug] l[Liters]: do(t, Transfer(j, k, l)) => l = contents(t, j) | l = maxContents(k) - contents(t, k).
+
+    // Inertia
+    {
+        ! j[Jug] l[Liters]: contents(Start, j) = l <- I_contents(j, l).
+        ! t[Time] j[Jug] l[Liters]: contents(Next(t), j) = l <- C_contents(t, j, l).
+        ! t[Time] j[Jug] l[Liters]: contents(Next(t), j) = l <- contents(t, j) = l & ~Cn_contents(t, j, l).
+    }
+
+    // Causes
+    {
+        // If the content changes, all other values are no longer it's content.
+        ! t[Time] j[Jug] l[Liters] m[Liters]: Cn_contents(t, j, l) <- C_contents(t, j, m) & l ~= m.
+
+        ! t[Time] j[Jug]: C_contents(t, j, maxContents(j)) <- do(t, Fill(j)).
+        ! t[Time] j[Jug]: C_contents(t, j, 0) <- do(t, Empty(j)).
+        ! t[Time] j[Jug] l[Liters]: C_contents(t, j, l) <- ? k[Jug] m[Liters]: do(t, Transfer(j, k, m)) & contents(t, j) = m + l.
+        ! t[Time] j[Jug] l[Liters]: C_contents(t, j, l) <- ? k[Jug] m[Liters]: do(t, Transfer(k, j, m)) & contents(t, j) + m = l.
+    }
+
+    // Exactly one action in every timestep
+    ! t[Time]: ?=1 a[Action]: do(t, a).
+
+    // Search for planning to 4 liters
+    // Finding a plan/possible state is done by demanding this state
+    ? t[Time] j[Jug]: contents(t, j) = 4.
+}
+
+procedure main() {
+    print(onemodel(merge(T, timeTheo), S))
+}

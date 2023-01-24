@@ -1,0 +1,85 @@
+include "elevator.idp"
+
+//Include tests
+include "./tests/correct_behaviour.idp"
+include "./tests/invariants.idp"
+
+
+//Arg: t - Theory, s - Structure 
+procedure check_invariant(name, t, s, inv){
+    bool_to_number={ [true]=1, [false]=0 }
+    
+    sol = isinvariant(t, inv, s)
+    
+    print(name, ",", sol, ",", "-", ",", "-", ",", bool_to_number[sol])
+}
+
+
+//Arg: t - Theory, s - Structure 
+procedure check_sat(name, t, s, negate){
+    bool_to_number={ [true]=1, [false]=0 }
+    
+    sol = sat(t,s)
+    
+    if negate == true then sol = not sol end
+    
+    print(name, ",", sol, ",", "-", ",", "-", ",", bool_to_number[sol])
+}
+
+
+//Arg: t - Theory, s - Structure, v - Vocabulary, cs - Correct structure, nm - Number of models
+procedure compare_structures_and_number_of_models(name, t, s, v, cs){
+
+    stdoptions.nbmodels = 2
+    
+    local sols = modelexpand(t,s,v)
+    
+    local eq_number_of_models = equal(1, #sols)
+    
+    local eq_first_model = false
+
+    if #sols == 1 then eq_first_model = equal(cs, sols[1]) end
+    if #sols == 2 then eq_first_model = equal(cs, sols[1]) or equal(cs, sols[2]) end
+    
+    local points = 0
+    if eq_number_of_models == true then points = points + 0.5 end
+    if eq_first_model == true then points = points + 0.5 end
+
+    print(name, ",", eq_number_of_models, ",", #sols, ",", eq_first_model, ",", points )      
+
+}
+
+procedure automated_testing(test){
+
+    local completeTheory = merge(T_fixed, T_student)
+
+    stdoptions.timeout = 70
+    
+    if (test == "Scenario 1") then 
+        compare_structures_and_number_of_models(test, completeTheory, S_t_1, V_fixed, S_t_1_sol)
+    elseif (test == "Scenario 2") then
+        compare_structures_and_number_of_models(test, completeTheory, S_t_2, V_fixed, S_t_2_sol)
+    elseif (test == "Scenario 3") then
+        compare_structures_and_number_of_models(test, completeTheory, S_t_3, V_fixed, S_t_3_sol)
+    elseif (test == "Scenario 4") then
+        compare_structures_and_number_of_models(test, completeTheory, S_t_4, V_fixed, S_t_4_sol)
+    elseif (test == "Scenario 5") then
+        compare_structures_and_number_of_models(test, completeTheory, S_t_5, V_fixed, S_t_5_sol)
+    elseif (test == "Scenario 6") then
+        compare_structures_and_number_of_models(test, completeTheory, S_t_6, V_fixed, S_t_6_sol)
+    elseif (test == "Scenario 7") then
+        compare_structures_and_number_of_models(test, completeTheory, S_t_7, V_fixed, S_t_7_sol)
+    elseif (test == "Scenario 8") then
+        compare_structures_and_number_of_models(test, completeTheory, S_t_8, V_fixed, S_t_8_sol)
+    elseif (test == "Invariant 1") then
+        check_invariant(test, T_student, S_Invariant, inv_1)
+    elseif (test == "Invariant 2") then
+        check_invariant(test, T_student, S_Invariant, inv_2)
+    elseif (test == "Invariant 3") then
+        check_invariant(test, merge(T_student, inv_2), S_Invariant, inv_3)
+    elseif (test == "Invariant 4") then
+        check_invariant(test, merge(T_student, inv_2), S_Invariant, inv_4)
+    elseif (test == "Invariant 5") then
+        check_invariant(test, T_student, S_Invariant, inv_5)
+    end
+}

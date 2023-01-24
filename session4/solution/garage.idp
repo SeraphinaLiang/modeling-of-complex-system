@@ -1,0 +1,82 @@
+vocabulary V {
+    type Time isa nat
+    partial Next(Time) : Time
+    Start : Time
+
+    type Pos isa int
+    type Remote
+
+    pushOpen(Time, Remote)
+    pushClose(Time, Remote)
+
+    minPos : Pos
+    maxPos : Pos
+    pos(Time, Pos)
+    I_pos : Pos
+    C_pos(Time, Pos)
+    Cn_pos(Time, Pos)
+
+    // Creating "causes-predicates" for opening and closing might be useful ;-)
+    // Do this as an exercise
+    opening(Time)
+    closing(Time)
+}
+
+theory T : V {
+    //!t : ?1p: Pos(t,p).
+
+    {
+        pos(Start, I_pos).
+        ! t[Time] p[Pos]: pos(Next(t), p) <- C_pos(t, p).
+        ! t[Time] p[Pos]: pos(Next(t), p) <- pos(t, p) & ~Cn_pos(t, p).
+    }
+    {
+        ! t[Time] p[Pos]: C_pos(t, p + 1) <- opening(t) & pos(t, p).
+        ! t[Time] p[Pos]: C_pos(t, p - 1) <- closing(t) & pos(t, p).
+        ! t[Time] p[Pos] q[Pos]: Cn_pos(t, p) <- C_pos(t, q) & p ~= q.
+    }
+    {
+        ! t[Time] r[Remote]: opening(Next(t)) <- pushOpen(t, r) & ~pos(t, maxPos).
+        ! t[Time] r[Remote]: closing(Next(t)) <- pushClose(t, r) & ~opening(Next(t)) & ~pos(t, minPos).
+        ! t[Time]: opening(Next(t)) <- opening(t) & ~pos(t, maxPos) & ~(? r[Remote]: pushClose(t, r)).
+        ! t[Time]: closing(Next(t)) <- closing(t) & ~pos(t, minPos) & ~(? r[Remote]: pushOpen(t, r)).
+    }
+}
+
+
+// Solution with immediate effects
+theory T2 : V {
+    {
+        pos(Start, I_pos).
+        ! t[Time] p[Pos]: pos(Next(t), p) <- C_pos(t, p).
+        ! t[Time] p[Pos]: pos(Next(t), p) <- pos(t, p) & ~Cn_pos(t, p).
+    }
+    {
+        ! t[Time] p[Pos]: C_pos(t, p + 1) <- opening(t) & pos(t, p).
+        ! t[Time] p[Pos]: C_pos(t, p - 1) <- closing(t) & pos(t, p).
+        ! t[Time] p[Pos] q[Pos]: Cn_pos(t, p) <- C_pos(t, q) & p ~= q.
+    }
+    {
+        ! t[Time] r[Remote]: opening(t) <- pushOpen(t, r) & ~pos(t, maxPos).
+        ! t[Time] r[Remote]: opening(Next(t)) <- opening(t) & ~pos(Next(t), maxPos) & ~pushClose(Next(t), r).
+        ! t[Time] r[Remote]: closing(t) <- pushClose(t, r) & ~pos(t, minPos) & ~(? s[Remote]: pushOpen(t, s)).
+        ! t[Time] r[Remote]: closing(Next(t)) <- closing(t) & ~pos(Next(t), minPos) & ~pushOpen(Next(t), r).
+    }
+}
+
+
+structure S : V {
+    Pos = {1..5}
+    minPos = 1
+    maxPos = 5
+    Time = {0..15}
+    Next = { 0,1; 1,2; 2,3; 3,4; 4,5; 5,6; 6,7; 7,8; 8,9; 9,10; 10,11; 11,12; 12,13; 13,14; 14,15; }
+    Remote = { A; B; }
+    I_pos = 1
+    pushOpen = { 1,A; 12,B }
+    pushClose = { 10,A; }
+}
+
+procedure main() {
+    print(onemodel(T2, S))
+}

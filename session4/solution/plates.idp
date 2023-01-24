@@ -1,0 +1,71 @@
+vocabulary V {
+    type Time isa nat
+    Start : Time
+    partial Next(Time) : Time
+
+    type Plate
+
+    // Fluents
+    clean(Time, Plate)
+    I_clean(Plate)
+    C_clean(Time, Plate)
+    Cn_clean(Time, Plate)
+
+    // Actions
+    cleanPlate(Time, Plate)
+    usePlate(Time, Plate)
+}
+
+structure S : V {
+    Time = {0..5}
+    Plate = { P1; P2; P3; P4; }
+    I_clean = { P1; P2; P3; P4; }
+}
+
+
+theory timeTheo : V {
+    {
+        Start = MIN[:Time].
+        ! t[Time]: Next(t) = t + 1 <- Time(t + 1).
+    }
+}
+
+theory T : V {
+    // Preconditions
+    // Do not clean a clean plate.
+    ! t[Time] p[Plate]: cleanPlate(t, p) => ~clean(t, p).
+    // Do not use a dirty plate.
+    ! t[Time] p[Plate]: usePlate(t, p) => clean(t, p).
+
+    { // Successor State Axiom
+        ! p[Plate]: clean(Start, p) <- I_clean(p).
+        ! t[Time] p[Plate]: clean(Next(t), p) <- C_clean(t, p).
+        ! t[Time] p[Plate]: clean(Next(t), p) <- clean(t, p) & ~Cn_clean(t, p).
+    }
+
+    { // Causes
+        ! t[Time] p[Plate]: C_clean(t, p) <- cleanPlate(t, p).
+        ! t[Time] p[Plate]: Cn_clean(t, p) <- usePlate(t, p).
+    }
+
+    // (Maybe, you can only clean one plate at a time?)
+    ! t[Time]: ?=<1 p[Plate]: cleanPlate(t, p).
+    // only use one plate at a time
+    ! t[Time]: ?=<1 p[Plate]: usePlate(t, p).
+}
+
+theory allDirty : V {
+    // Is it possible to make all your plates dirty?
+    ? t[Time]: ! p[Plate]: ~clean(t, p).
+}
+
+
+include <mx>
+procedure main() {
+    S = calculatedefinitions(timeTheo, S)
+    local allconstraints = merge(T, allDirty)
+    print("This is the merged theory:")
+    print(allconstraints)
+    print("Searching for a model")
+    print(onemodel(allconstraints, S))
+}

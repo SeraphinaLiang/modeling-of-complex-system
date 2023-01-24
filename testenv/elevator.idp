@@ -1,0 +1,264 @@
+// First name: <Yinqi>
+// Last name: <Liang>
+// Student number: <r0865008>
+
+
+// FIXED VOCABULARY
+// DO NOT CHANGE THIS VOCABULARY
+LTCvocabulary V_fixed {
+    type Time isa nat			// A set of time points
+    Start: Time 				// The initial time point
+    partial Next(Time): Time 	// The successor time point of time point t
+
+    type Floor isa nat									// The set of floors
+    type DoorState constructed from {Closed, Open}		// A set of possible states of the elevator’s doors
+
+    // Fluents
+    ElPosition(Time):Floor				// The floor of the elevator at time point t
+    ElDoorState(Time):DoorState			// The state of the elevator’s doors at time point t
+    UnansweredRequest(Time, Floor)		// Denotes that there is an unanswered request at floor f at time point t
+
+    // Actions
+    MakeRequest(Time, Floor) 			// Denotes that a request is made for floor f at time point t
+}
+
+
+// STUDENT VOCABULARY
+// Here you can add new types, functions and predicates
+LTCvocabulary V_student {
+    extern vocabulary V_fixed
+
+    type HandleStep constructed from {A,B} // step A - opening door,step B - closing door
+    HandlingDoor(Time,Floor,HandleStep)   // contains 2 step A and B
+
+    // elevator movement
+    MovingFloor(Time,Floor) // moving to the specific floor if not at that specfic floor
+    ChangeMovingFloor(Time,Floor) // change the target floor to move to
+
+    AnsweredRequest(Time,Floor) // when the UnansweredRequest for the floor been answered,it becomes an AnsweredRequest
+
+    // ElPosition(Time):Floor
+    I_ElPosition:Floor
+    C_ElPosition(Time,Floor)
+    Cn_ElPosition(Time,Floor)
+
+    // ElDoorState(Time):DoorState
+    I_ElDoorState:DoorState
+    C_ElDoorState(Time,DoorState)
+    Cn_ElDoorState(Time,DoorState)
+
+    // for actions performed by elevator
+    type Action constructed from {GoingUp, GoingDown, OpenDoor, CloseDoor}
+    do(Time,Action) // perform the action
+
+    // constants
+    MaxFloor:Floor // specific the maximal and minimal floor
+    MinFloor:Floor
+
+    // action state of elevator
+    type ActionState constructed from{Still,Up,Down} 
+    State(Time,ActionState)  // the movement status of elevator
+    I_State:ActionState
+    C_State(Time,ActionState)
+    Cn_State(Time,ActionState)
+
+    ChangeState(Time,ActionState) // change the movement status of the elevator
+
+    type Number = {0..30} isa nat // helper type to calculate the distance between targeted floor and current position
+    DistantUp(Time,Floor,Number)
+    DistantDown(Time,Floor,Number)
+    DistantAll(Time,Floor,Number)
+
+}
+
+// STUDENT THEORY
+// Here you should model the dynamic elevator system
+Theory T_student:V_student {
+    {
+        // initial value
+        MaxFloor = MAX[:Floor].
+        MinFloor = MIN[:Floor].
+        I_ElPosition = MIN[:Floor].
+        I_ElDoorState = Closed.
+        I_State = Still.
+    }
+    // State init
+    {
+        State(Start,I_State).
+        ! t[Time] s[ActionState]: State(Next(t),s) <- C_State(t,s).
+        ! t[Time] s[ActionState]: State(Next(t),s) <- State(t,s) & ~Cn_State(t,s).
+    }
+    // State alter
+    {
+        ! t[Time] s[ActionState]: C_State(t,s) <- ChangeState(t,s).
+        ! t[Time] : C_State(t,Up) <- do(t,GoingUp). // when elevator going up, the State change to Up.
+        ! t[Time] : C_State(t,Down) <- do(t,GoingDown). // when elevator going down, the State change to Down.
+        ! t[Time] s[ActionState]: Cn_State(t,s) <- ? s1[ActionState]: C_State(t,s1)& s ~= s1.
+    }    
+    // ElPosition init
+    {
+        ElPosition(Start) = I_ElPosition.
+        ! t[Time] n[Floor] : ElPosition(Next(t)) = n <- C_ElPosition(t,n).
+        ! t[Time] n[Floor] : ElPosition(Next(t)) = n <- ElPosition(t)=n & ~Cn_ElPosition(t,n).
+    }
+    // ElPosition alter
+    {
+        ! t[Time] n[Floor] : C_ElPosition(t,n+1) <- do(t,GoingUp) & ElPosition(t) = n.// move one floor up
+        ! t[Time] n[Floor] : C_ElPosition(t,n-1) <- do(t,GoingDown) & ElPosition(t) = n. // move one floor down
+        ! t[Time] n[Floor] : Cn_ElPosition(t,n)  <- ? m[Floor] : C_ElPosition(t,m) & m ~= n.
+    }
+    // ElDoorState init
+    {
+        ElDoorState(Start) = I_ElDoorState.
+        ! t[Time] s[DoorState]: ElDoorState(Next(t))=s <- C_ElDoorState(t,s).
+        ! t[Time] s[DoorState]: ElDoorState(Next(t))=s <- ~Cn_ElDoorState(t,s)& ElDoorState(t)=s.
+    }
+    // ElDoorState alter
+    {
+        ! t[Time] : C_ElDoorState(t,Open) <- do(t,OpenDoor) & ElDoorState(t)=Closed.
+        ! t[Time] : C_ElDoorState(t,Closed) <- do(t,CloseDoor) & ElDoorState(t)=Open.
+        ! t[Time] p[DoorState]: Cn_ElDoorState(t,p) <- ? q[DoorState]: C_ElDoorState(t,q) & p~=q.
+    }    
+    {
+        // MakeRequest(t,f) only effect when UnansweredRequest(t,f) do not hold ,MakeRequest(Time, Floor) generates UnansweredRequest(Time, Floor)
+        ! t[Time] f[Floor] : UnansweredRequest(Next(t),f) <- MakeRequest(t,f) & ~ UnansweredRequest(t,f).
+        // UnansweredRequest proceed to t+1 until it has been fulfilled
+        ! t[Time] f[Floor]: UnansweredRequest(Next(t),f) <- UnansweredRequest(t,f) & ~ AnsweredRequest(t,f).
+
+        // when targeted floor > current position, elevator move one floor up
+        ! t[Time] f1[Floor] f2[Floor] : do(t,GoingUp) <- MovingFloor(t,f1) & ElPosition(t)=f2 & f1>f2.
+        // when targeted floor < current position, elevator move one floor down
+        ! t[Time] f1[Floor] f2[Floor] : do(t,GoingDown) <- MovingFloor(t,f1) & ElPosition(t)=f2 & f1<f2.
+
+        // MovingFloor proceed to t+1 when current floor do not match the target floor, and there is no ChangeMovingFloor request at t
+        ! t[Time] f1[Floor] f3[Floor]: MovingFloor(Next(t),f1) <- MovingFloor(t,f1) & ElPosition(t)=f3 & f1~=f3 & ~? f2[Floor]:(ChangeMovingFloor(t,f2) & f1 ~= f2).
+        // change the target floor to move to
+        ! t[Time] f[Floor] : MovingFloor(Next(t),f) <- ChangeMovingFloor(t,f).
+        // when the target floor = elevator position, proceed to next step (open and close door)
+        ! t[Time] f1[Floor] f2[Floor]: HandlingDoor(t,f1,A) <- MovingFloor(t,f1) & ElPosition(t)=f2 & f1=f2.
+
+        // in step A, the door been open
+        ! t[Time] f[Floor]: do(t,OpenDoor) <- HandlingDoor(t,f,A).
+        // step A trigger step B in next time point
+        ! t[Time] f[Floor]: HandlingDoor(Next(t),f,B) <- HandlingDoor(t,f,A).
+        // in step B, the door been close
+        ! t[Time] f[Floor]: do(t,CloseDoor) <- HandlingDoor(t,f,B).
+        // after closed the door, the request at this floor is answered.
+        ! t[Time] f[Floor]: AnsweredRequest(Next(t),f) <- HandlingDoor(t,f,B).  
+
+        //----------calculate minimun distant-------------------------------
+        /* 
+        find the UnansweredRequest with the targeted floor closest(above or equals) to the current position,
+        find the targeted floor and distance with those property at time t
+        */
+        ! t[Time] f0[Floor] b0[Number]:DistantUp(t,f0,b0)<- ( ! f[Floor] : ? fmin[Floor] pos[Number] a[Number] b[Number]: 
+        UnansweredRequest(t,f)& UnansweredRequest(t,fmin)& (ElPosition(t)=pos) &
+        (f >= pos) & (fmin >= pos) &
+        (f-pos = a) & (fmin-pos = b) & (a >= b)
+        & (fmin = f0) & (b = b0)).
+
+        /*
+        find the UnansweredRequest with the targeted floor closest(below) to the current position
+        find the targeted floor and distance with those property at time t
+        */
+        ! t[Time] f0[Floor] b0[Number]:DistantDown(t,f0,b0) <-  (! f[Floor] : ? fmax[Floor] pos[Number] a[Number] b[Number]: 
+        UnansweredRequest(t,f)& UnansweredRequest(t,fmax)& ElPosition(t)=pos &
+        (f < pos) & (fmax < pos) &
+        (pos-f = a) & (pos-fmax = b) & (a >= b)
+        & (fmax = f0) & (b = b0)).
+
+        /*
+        find the smallest distance between all unanswered request and current position
+        calculate for time t, the targeted floor and the shortest distance based on the previous calculation
+        */
+        // no request below current floor, only consider request above in this case
+        ! t[Time] f[Floor] d[Number]: DistantAll(t,f,d) <- (~? f1[Floor] d1[Number]:DistantDown(t,f1,d1)) & DistantUp(t,f,d).
+        // no request above current floor, only consider request below in this case
+        ! t[Time] f[Floor] d[Number]: DistantAll(t,f,d) <- (~? f1[Floor] d1[Number]:DistantUp(t,f1,d1)) & DistantDown(t,f,d).
+        // the request above is with smaller (or equal) distance to the request below
+        ! t[Time] f[Floor] f1[Floor] d[Number] d1[Number]: DistantAll(t,f,d) <- DistantUp(t,f,d) & DistantDown(t,f1,d1) & d =< d1. // if equals, move up
+        // the request below is with smaller distance to the request above
+        ! t[Time] f[Floor] f1[Floor] d[Number] d1[Number]: DistantAll(t,f,d) <- DistantDown(t,f,d) & DistantUp(t,f1,d1) & d < d1. 
+
+        //-----------main logic----------------------------------------------    
+        // when the elevator stay still, move to the cloest floor
+        ! t[Time] f[Floor] d[Number]: ChangeMovingFloor(t,f) <- DistantAll(t,f,d) & State(t,Still).
+
+        // when the elevator is moving up, it finish all request above or equals to its current floor before goes down
+        ! t[Time] f[Floor] d[Number]: ChangeMovingFloor(t,f) <- DistantUp(t,f,d) & State(t,Up) .   
+        // when there is no request above but has request below its current floor, the elevator state change to Down
+        ! t[Time] f[Floor] : ChangeState(t,Down) <- State(t,Up) &( ? f1[Floor] d1[Number]:DistantDown(t,f1,d1)) & (~? f2[Floor] d2[Number]:DistantUp(t,f2,d2)).
+        // when there is no request anymore, the elevator stay still
+        ! t[Time] f[Floor] : ChangeState(t,Still) <- State(t,Up) & (~? f1[Floor] d1[Number]:DistantDown(t,f1,d1)) & (~? f2[Floor] d2[Number]:DistantUp(t,f2,d2)).
+
+        // corrosponding to state Up above, the same explanations with state Down
+        ! t[Time] f[Floor] d[Number]: ChangeMovingFloor(t,f) <- DistantDown(t,f,d) & State(t,Down).
+        ! t[Time] f[Floor] : ChangeState(t,Up) <- State(t,Down) & (? f1[Floor] d1[Number]:DistantUp(t,f1,d1)) & (~? f2[Floor] d2[Number]:DistantDown(t,f2,d2)).
+        ! t[Time] f[Floor] : ChangeState(t,Still) <- State(t,Down) & (~? f1[Floor] d1[Number]:DistantDown(t,f1,d1)) & (~? f2[Floor] d2[Number]:DistantUp(t,f2,d2)).    
+    }
+
+    // only one(or zero) shorest distance and one(or zero) specific floor with that distance is found at every time point T
+    ! t[Time] : ?=<1 f[Floor] d[Number]:DistantUp(t,f,d).
+    ! t[Time] : ?=<1 f[Floor] d[Number]:DistantDown(t,f,d).
+    ! t[Time] : ?=<1 f[Floor] d[Number]:DistantAll(t,f,d).
+
+    // elevator going up and down only with closed door and not the Top/Button floor.
+    ! t[Time] f[Floor]: do(t,GoingUp) & ElPosition(t)=f  => ElDoorState(t) = Closed & f ~= MaxFloor.
+    ! t[Time] f[Floor]: do(t,GoingDown) & ElPosition(t)=f => ElDoorState(t) = Closed & f ~= MinFloor.
+    // alter at most one property
+    ! t[Time] : ?=<1 a[Action] : do(t,a).
+
+}
+
+// if elevator moves the door are closed
+theory move_inv : V_student{
+    ! t[Time]: do(t,GoingUp) => ElDoorState(t) = Closed.
+    ! t[Time]: do(t,GoingDown) => ElDoorState(t) = Closed.
+}
+
+// doors are never open if there is no call waiting on that floor
+theory door_inv : V_student{
+    ! t[Time] f[Floor]: (ElDoorState(t) = Open & ElPosition(t)=f) => UnansweredRequest(t,f).
+}
+
+Structure S_Inv:V_student{
+    Time={0..20}
+    Floor={0..5}
+    Start = 0
+}
+
+// TIME THEORY
+// DO NOT CHANGE THIS THEORY
+Theory T_fixed : V_student {
+    // Defining time
+    {
+        Start = MIN[:Time].
+        ! t: Next(t) = t+1 <- Time(t+1).
+    }
+}
+
+// MAIN PROCEDURE
+// If you have to change the main procedure for debugging purposes, be careful and restore it back once you finish debugging.
+procedure main() {
+
+    local CompleteTheory = merge(T_fixed, T_student) 
+
+    // Change the structure name to try other structures (check the included file "structures.idp" for available provided structures, and feel free to add additional structures)                                
+    model = onemodel(CompleteTheory, S2)   
+    // Printing model 
+    print(model)
+
+    print(isinvariant(T_student,move_inv,S_Inv))
+    print(isinvariant(T_student,door_inv,S_Inv))
+
+    // Visualization
+    initVisualization()
+    visualizeElevator(model)
+}
+
+// File responsible for visualization  
+include "visualize_elevator.idp"
+
+// Structures for testing
+// You can open this file and check the given structures 
+include "structures.idp"

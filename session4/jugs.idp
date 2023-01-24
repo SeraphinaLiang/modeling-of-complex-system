@@ -1,0 +1,38 @@
+vocabulary V {
+    type Time isa nat
+    partial Next(Time) : Time
+    Start : Time
+
+    type Jug
+    type Liters isa nat
+    maxContents(Jug) : Liters
+
+    type Action constructed from { Fill(Jug), Transfer(Jug, Jug, Liters), Empty(Jug) }
+    do(Time, Action)
+    
+    I_contents(Jug) : Liters
+    // ... more things
+}
+
+theory timeTheo : V {
+    {
+        Start = MIN[:Time].
+        ! t[Time]: Next(t) = t + 1 <- Time(t + 1).
+    }
+}
+
+structure S : V {
+    Time = {0..6}
+    Jug = { J3;J5; }
+    Liters = {0..10}
+    maxContents = { J5->5; J3->3; }
+    I_contents = { J3->0; J5->0; }
+}
+
+theory T : V {
+
+}
+
+procedure main() {
+    print(onemodel(merge(T, timeTheo), S))
+}

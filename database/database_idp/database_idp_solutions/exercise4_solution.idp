@@ -1,0 +1,29 @@
+include "database.idp"
+include "run_queries.idp"
+
+procedure main() {
+    integrityConstraints = {IntegrityConstraint1,IntegrityConstraint2,IntegrityConstraint3,IntegrityConstraint4}
+
+    allIntegrityConstraints = merge(IntegrityConstraint1,IntegrityConstraint2)
+    allIntegrityConstraints = merge(allIntegrityConstraints,IntegrityConstraint3)
+    allIntegrityConstraints = merge(allIntegrityConstraints,IntegrityConstraint4)
+    // This way, you can combine all the integrityConstraints to One big theory representing integrity of the database.
+
+    testIntegrityConstraints(integrityConstraints)
+}
+
+// TODO: add integrity constraints
+
+theory IntegrityConstraint1 : Sigma {
+    ! c: ~Prerequ(c,c).
+}
+
+theory IntegrityConstraint2 : Sigma {
+    ! s c: #{g : Grade(s, c, g)} =< 1.
+}
+theory IntegrityConstraint3 : Sigma {
+    ~? s: (? c: Instructor(s, c)) & (? c: Enrolled(s, c)).
+}
+theory IntegrityConstraint4 : Sigma {
+    ! s c: Enrolled(s, c) => (! p: Prerequ(p, c) => (? g: Grade(s, p, g) & PassGrade(g))).
+}

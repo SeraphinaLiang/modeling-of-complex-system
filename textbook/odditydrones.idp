@@ -1,0 +1,195 @@
+// Name: <actual name>
+// Last name: <actual last name>
+// Student number: <actual student number>
+
+
+//DO NOT CHANGE THIS VOCABULARY
+LTCvocabulary V_fixed {
+    
+    //Standard LTC time
+    type Time isa nat
+    Start: Time
+    partial Next(Time): Time
+    
+    //Set of drones
+    type Drone
+    
+    //Standard mathematical coordinate system
+    type X isa int
+    type Y isa int
+    type Pos constructed from { P(X, Y) }
+    
+    //Flying directions  
+    type Dir constructed from { North, West, South, East }
+    //Different type of terrain
+    type Terrain constructed from { Land, Ice, Water }
+    //Set of data
+    type Data constructed from { D(Terrain, Pos) }
+    
+    //Position of the hub
+    posOfHub: Pos
+    //The terrain at each position
+    terrainOf(Pos): Terrain
+    
+    //The position of a drone at each time point
+    posOf(Time, Drone): Pos
+    //Set of processed positions at each time point
+    processed(Time, Pos)
+    //Data that drone has at each time point
+    info(Time, Drone, Data)
+}
+
+
+//DO NOT CHANGE THIS VOCABULARY
+LTCvocabulary V_action {
+    extern vocabulary V_fixed
+    
+    //The particular movement of a drone in a certain direction at each time point
+    move(Time, Drone, Dir)
+    //The action of scanning performed by a drone at each time point
+   	scan(Time, Drone)
+}
+
+//STUDENTS VOCABULARY
+LTCvocabulary V_student {
+    extern vocabulary V_action
+    // Add here your extra function and predicates
+    // Examples could be: cause predicates for the fluents.
+    // or helper functions/predicates for more complicated definitions.
+    // Comment each symbol with the intended meaning
+    
+    // Boolean, determine whether two positions are in range of 2
+    inRange(Pos,Pos)
+    // Reachable symbol
+    Reach(Time,Drone)
+    // State that the station receives the data but not yet processed
+    HubDataNotYetPro(Time,Pos)
+    
+    // C,Cn,I for movement of the drones
+    I_pos(Drone,Pos) // initial position of drone
+    C_pos(Time,Drone,Pos)
+    Cn_pos(Time,Drone,Pos)
+    
+    // C,Cn,I for scanning of the drones
+    I_info(Drone,Data) // initial data of drone
+    C_info(Time,Drone,Data)
+    Cn_info(Time,Drone,Data)
+}
+
+
+//DO NOT CHANGE THIS THEORY
+theory T_time : V_student {
+    //Defining time
+    {
+        Start = MIN[:Time].
+        ! t: Next(t) = t+1 <- Time(t+1).
+    }
+}
+
+//STUDENTS THEORY
+theory T : V_student {
+    // To be filled in (Add here your definitions and constraints).
+    // Comment each rule.
+    
+    // Station cannot land on non-land tile
+    {
+        !p[Pos] : posOfHub = p <- terrainOf(p) = Land.
+    }    
+    
+    // drone cannot go to two direction at the same time
+    !d[Drone] t[Time]: ?=<1 dir[Dir]: move(t,d,dir).
+    // if one scan, one cannot move
+    !d[Drone] t[Time] dir[Dir]: scan(t,d) => ~move(t,d,dir).
+    // if one move, one cannot scan
+    !d[Drone] t[Time] dir[Dir]: move(t,d,dir) => ~scan(t,d).
+     // no drones can stay in same position at same time except Start
+    !d1[Drone] d2[Drone] t[Time] : (posOf(t,d1) ~= posOfHub & d1 ~= d2) => posOf(t,d1) ~= posOf(t,d2).
+    
+    
+    // definition of inRange and Reach 
+    {
+        ! x1[X] x2[X] y1[Y] y2[Y] : inRange(P(x1,y1),P(x2,y2)) <- (abs(x1-x2) + abs(y1-y2)) =< 2.
+        ! d[Drone] t[Time]: Reach(t,d) <- inRange(posOfHub,posOf(t,d)).
+        ! d1[Drone] t[Time] d2[Drone]: Reach(t,d1) <- Reach(t,d2) & inRange(posOf(t,d1),posOf(t,d2)).
+    }
+    // every dronw at any time should be reachable from the station
+    ! d[Drone] t[Time]: Reach(t,d).   
+    
+    
+    // Movement of Drone and Causation
+    {
+        ! d[Drone]: posOf(Start,d) = posOfHub <- I_pos(d,posOfHub).
+        ! t[Time] d[Drone] p[Pos]: posOf(Next(t), d) = p <- C_pos(t, d, p).
+        ! t[Time] d[Drone] p[Pos]: posOf(Next(t), d) = p <- posOf(t, d) = p & ~Cn_pos(t, d, p).
+    }
+    
+    {
+        // drone does not go beyond map
+        ! t[Time] d[Drone] x[X] y[Y]: C_pos(t, d, P(x,y)) <- ((posOf(t,d) = P(x,y-1) & move(t,d,South) & y ~= MIN[:Y]) |
+        														(posOf(t,d) = P(x,y+1) & move(t,d,North) & y ~= MAX[:Y]) |
+        														(posOf(t,d) = P(x-1,y) & move(t,d,East) & x ~= MIN[:X]) |
+        														(posOf(t,d) = P(x+1,y) & move(t,d,West) & x ~= MAX[:X])) |
+        														(scan(t,d) & posOf(t,d) = P(x,y)).
+        // not staying in Pos, if drone at such Pos perform move
+        ! t[Time] d[Drone] p[Pos] dir[Dir]: Cn_pos(t, d, p) <- (posOf(t,d) = p & move(t,d,dir)).
+    }
+      
+
+    
+    
+    
+    // Scanning of Drone and Causation
+    {
+        ! t[Time] d[Drone] data[Data]: info(Next(t), d, data) <- C_info(t, d, data).
+        ! t[Time] d[Drone] data[Data]: info(Next(t), d, data) <- info(t,d,data) & ~Cn_info(t, d, data).
+    }
+    
+    {
+        // process and data deletion happenes together, thus the condition is hubdatanotyetpro.
+        ! t[Time] d[Drone] terrain[Terrain] pos[Pos] d2[Drone]: C_info(t,d,D(terrain,pos)) <-
+        							((scan(t,d) & posOf(t,d) = pos & terrainOf(pos) = terrain) | 
+        							(inRange(posOf(t,d2),posOf(t,d)) & info(t,d2,D(terrain,pos)) & ~info(t-1,d2,D(terrain,pos)))) &
+        							~HubDataNotYetPro(t,pos).
+        // if hub has data of pos, next(t) it gets deleted from all drones
+        ! t[Time] d[Drone] data[Data] terrain[Terrain] pos[Pos]: Cn_info(t,d,D(terrain,pos)) <- 
+        												HubDataNotYetPro(t,pos).
+    }
+    
+    // Drone does not scan pos that is processed or it knows
+    !d[Drone] t[Time]: scan(t,d) => ~processed(t,posOf(t,d)) &
+        	~info(t,d,D(terrainOf(posOf(t,d)),posOf(t,d))).
+    
+    // hub receives data if in ranged drone broadcast data
+    {
+        // at Start, we know base is on a land tile
+    	processed(Start,posOfHub).
+        !t[Time] pos[Pos] d[Drone] terrain[Terrain]: HubDataNotYetPro(Next(t),pos) <- 
+        	 info(t,d,D(terrain,pos)) & ~info(t-1,d,D(terrain,pos)) & inRange(posOf(t,d),posOfHub).
+        // once data is processed, it is kept in the base
+        !t[Time] pos[Pos]: processed(Next(t),pos) <- HubDataNotYetPro(t,pos) | processed(t,pos).
+    }
+    
+    // test use
+    // ?t[Time]: ! p[Pos] : processed(t,p).
+    
+}
+
+
+procedure main() {
+    local completeTheory = merge(T_time, T)
+    
+    //Use the structures from "structures.idp" file S1...S9 for testing
+    //Take a look at this file it can contain descriptions with structures
+    //Don't hesitate to make your own test structures.
+    
+    local sol = onemodel(completeTheory,S1)
+    
+    show(sol)
+    //Replace the show procedure with the show_offline if you don't have an internet connection.
+    //show_offline(sol)
+}
+
+
+include "visualisation.idp"
+include "visualisation_offline.idp"
+include "structures.idp"
